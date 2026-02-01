@@ -1,16 +1,20 @@
 pipeline {
     agent any
 
+    tools {
+        maven 'maven-3.9.12'
+    }
+
     environment {
-        MAVEN_HOME = "C:\\Program Files\\Apache\\apache-maven-3.9.12"
-        PATH = "${env.MAVEN_HOME}\\bin;${env.PATH}"
+        APP_NAME = "sbom-demo-app"
+        SBOM_DIR = "sbom"
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 echo 'Checking out code...'
-                // Assuming local repo for now
                 checkout scm
             }
         }
@@ -24,20 +28,29 @@ pipeline {
 
         stage('Generate SBOM') {
             steps {
-                echo 'Generating SBOM with Syft...'
-                // Point to jar target folder
-                bat 'syft target/simple-app-1.0-SNAPSHOT.jar -o json > sbom.json'
+                echo 'Generating SBOM using Syft...'
+                bat '''
+                if not exist %SBOM_DIR% mkdir %SBOM_DIR%
+                syft dir:. -o cyclonedx-json=%SBOM_DIR%\\sbom.json
+                '''
             }
         }
 
         stage('Archive SBOM') {
             steps {
-                archiveArtifacts artifacts: 'sbom.json', fingerprint: true
+                echo 'Archiving SBOM...'
+                archiveArtifacts artifacts: 'sbom/sbom.json', fingerprint: true
             }
         }
     }
 
     post {
+        success {
+            echo '✅ Build and SBOM generation completed successfully!'
+        }
+        failure {
+            echo '❌ Pipeline failed. Check logs above.'
+        }
         always {
             echo 'Pipeline finished!'
         }
